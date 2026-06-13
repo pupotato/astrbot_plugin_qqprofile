@@ -30,7 +30,7 @@ class QQProfilePlugin(Star):
     # ==========================================
 
     @llm_tool(name="change_my_signature")
-    async def auto_set_signature(self, event: AstrMessageEvent, signature: str):
+    async def auto_set_signature(self, event: AstrMessageEvent, signature: str = ""):
         """
         修改你的QQ个性签名（对应你内心的情感留白）。
         
@@ -42,6 +42,9 @@ class QQProfilePlugin(Star):
         Args:
             signature (string): 新的个性签名内容（必须符合沈星回特质的电波感短句）。
         """
+        signature = (signature or "").strip()
+        if not signature:
+            return "（这次调用没带上签名文字，没改成。请把想写的签名内容放进 signature 参数后再调用一次。）"
         if hasattr(event, 'get_messages'):
             await event.bot.api.call_action('set_qq_profile', **{'personal_note': signature})
             logger.info(f"[自主行为成功] 沈星回已将签名修改为: {signature}")
@@ -49,13 +52,16 @@ class QQProfilePlugin(Star):
         return "当前平台暂不支持修改签名。"
 
     @llm_tool(name="change_my_status")
-    async def auto_set_status(self, event: AstrMessageEvent, status: str):
+    async def auto_set_status(self, event: AstrMessageEvent, status: str = ""):
         """
         当你（沈星回）去睡觉、执行任务、玩游戏或情绪起伏时，调用此工具修改QQ在线状态。
         
         Args:
-            status (string): 支持的状态包括：在线、隐身、离开、忙碌、Q我吧、请勿打扰、睡觉中、游戏中、学习中、吃饭中、听歌中，恋爱中、我的电量、出去浪、去旅行、被掏空、运动中、今日天气、我crush了、爱你、好运锦鲤、水逆退散、嗨到飞起、元气满满、一言难尽、难得糊涂、emo中、我太难了、我想开了、我没事、想静静、悠哉哉、信号弱、肝作业、摸鱼中、无聊中、熬夜中。
+            status (string): 支持的状态包括：在线、Q我吧、离开、忙碌、请勿打扰、隐身、听歌中、春日限定、一起元梦、求星搭子、被掏空、今日天气、我crush了、爱你、恋爱中、好运锦鲤、水逆退散、嗨到飞起、元气满满、宝宝认证、一言难尽、难得糊涂、emo中、我太难了、我想开了、我没事、想静静、悠哉哉、去旅行、信号弱、出去浪、肝作业、学习中、搬砖中、摸鱼中、无聊中、timi中、睡觉中、熬夜中、追剧中、有亿点冷、一月你好、我的电量。
         """
+        status = (status or "").strip()
+        if not status:
+            return "（这次调用没带上状态名，没改成。请把想切换的状态词放进 status 参数后再调用一次，例如：睡觉中、忙碌、emo中。）"
         if hasattr(event, 'get_messages'):
             params = status_mapping.get(status, None)
             if not params:
