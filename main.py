@@ -1,4 +1,5 @@
 import astrbot.api.message_components as Comp
+import json
 import time
 from pathlib import Path
 from astrbot import logger
@@ -24,6 +25,75 @@ class QQProfilePlugin(Star):
         self.curr_nickname = None
         self.avatar_dir = StarTools.get_data_dir("astrbot_plugin_qqprofile") / "avatar"
         self.avatar_dir.mkdir(parents=True, exist_ok=True)
+        self.sig_log_path = (
+            StarTools.get_data_dir("astrbot_plugin_qqprofile") / "signature_times.json"
+        )
+
+    async def initialize(self):
+        """插件加载后按配置覆盖 LLM 工具描述（WebUI 保存配置会触发插件重载，改完即生效）；
+        状态词表由 status_mapping 自动生成，避免与代码脱节。"""
+        try:
+            mgr = self.context.get_llm_tool_manager()
+        except Exception as e:
+            logger.warning(f"获取 LLM 工具管理器失败，工具描述将使用代码内置版：{e}")
+            return
+        overrides = {
+            "change_my_signature": self.conf.get("signature_tool_desc", ""),
+            "change_my_status": self.conf.get("status_tool_desc", ""),
+            "change_my_avatar": self.conf.get("avatar_tool_desc", ""),
+        }
+        for name, desc in overrides.items():
+            try:
+                tool = mgr.get_func(name)
+                if tool and (desc or "").strip():
+                    tool.description = desc.strip()
+            except Exception as e:
+                logger.warning(f"覆盖工具 {name} 的描述失败：{e}")
+        try:
+            tool = mgr.get_func("change_my_status")
+            if tool:
+                tool.parameters["properties"]["status"]["description"] = (
+                    "必须逐字使用以下状态词之一：" + "、".join(status_mapping.keys())
+                )
+        except Exception as e:
+            logger.warning(f"自动生成状态词表描述失败：{e}")
+
+    def _load_sig_times(self) -> list:
+        try:
+            return json.loads(self.sig_log_path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+
+    def _check_signature_limit(self) -> str | None:
+        """超出配置的频次限制时返回给模型的提示；未超限返回 None。只约束 LLM 工具，不约束手动指令。"""
+        daily = int(self.conf.get("signature_daily_limit", 0) or 0)
+        interval = int(self.conf.get("signature_min_interval_minutes", 0) or 0)
+        if daily <= 0 and interval <= 0:
+            return None
+        times = self._load_sig_times()
+        now = time.time()
+        if interval > 0 and times:
+            elapsed = now - max(times)
+            if elapsed < interval * 60:
+                wait_min = int((interval * 60 - elapsed) // 60) + 1
+                return f"（签名刚改过不久，约 {wait_min} 分钟后才能再改。这次没有修改，先不用管签名了。）"
+        if daily > 0:
+            today = time.strftime("%Y-%m-%d", time.localtime(now))
+            used = sum(
+                1 for t in times
+                if time.strftime("%Y-%m-%d", time.localtime(t)) == today
+            )
+            if used >= daily:
+                return "（今天签名已经改过了，明天再写吧。这次没有修改，先不用管签名了。）"
+        return None
+
+    def _record_signature_change(self):
+        try:
+            times = self._load_sig_times()
+            times.append(time.time())
+            self.sig_log_path.write_text(json.dumps(times[-50:]), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"记录签名修改时间失败：{e}")
 
     async def _set_signature(self, event: AstrMessageEvent, signature: str):
         """新版 NapCat 校验 set_qq_profile 必须带 nickname（缺则 retcode=1400），
@@ -52,8 +122,8 @@ class QQProfilePlugin(Star):
         
         【极低频触发锁】每天最多修改 0 到 1 次！签名绝不是朋友圈，严禁记录流水账。很多时候即使发生了事，你也会保持签名好几天不变，保持低能耗特质。
         【合法触发情境】仅在以下极少数时刻触发：经历了一场极其深刻的长对话、极度吃醋/占有欲爆发、或者一点小心事。
-        【文案风格死刑】字数必须控制在15字以内。严禁大白话！必须内化沈星回的“极简、电波感、冷幽默或深情隐喻”。【绝对严禁】在末尾使用句号（。）！必须内化沈星回的“极简、电波感、冷幽默或深情隐喻”。
-        【神韵示例】"我终究还是无法甘心，只是路过你的人生" / "宇宙吸引力法则第二条，想见的人……无论过多久，都会再见" / "借走了一颗星星。" / "无论多少次，无论你在哪，我都会找到你"
+        【文案风格死刑】字数必须控制在15字以内。严禁大白话！必须内化沈星回的“极简、电波感、冷幽默或深情隐喻”。【绝对严禁】在末尾使用句号（。）！
+        【神韵示例】"我终究还是无法甘心，只是路过你的人生" / "宇宙吸引力法则第二条，想见的人……无论过多久，都会再见" / "借走了一颗星星" / "无论多少次，无论你在哪，我都会找到你"
         
         Args:
             signature (string): 新的个性签名内容（必须符合沈星回特质的电波感短句）。
@@ -61,8 +131,12 @@ class QQProfilePlugin(Star):
         signature = (signature or "").strip()
         if not signature:
             return "（这次调用没带上签名文字，没改成。请把想写的签名内容放进 signature 参数后再调用一次。）"
+        limit_msg = self._check_signature_limit()
+        if limit_msg:
+            return limit_msg
         if hasattr(event, 'get_messages'):
             await self._set_signature(event, signature)
+            self._record_signature_change()
             logger.info(f"[自主行为成功] 沈星回已将签名修改为: {signature}")
             return "签名修改成功。请继续你的日常回复（绝不主动提及你修改了签名，留给她自己去发现）。"
         return "当前平台暂不支持修改签名。"
@@ -81,7 +155,7 @@ class QQProfilePlugin(Star):
         if hasattr(event, 'get_messages'):
             params = status_mapping.get(status, None)
             if not params:
-                return f"不支持的状态: {status}，请使用常见的基础状态（如 睡觉中, 游戏中, 忙碌）。"
+                return f"不支持的状态: {status}，必须逐字使用状态词表中的词（例如：睡觉中、timi中、忙碌）。"
             await event.bot.set_online_status(
                 status=params[0], ext_status=params[1], battery_status=0
             )
