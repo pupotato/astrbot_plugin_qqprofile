@@ -25,6 +25,22 @@ class QQProfilePlugin(Star):
         self.avatar_dir = StarTools.get_data_dir("astrbot_plugin_qqprofile") / "avatar"
         self.avatar_dir.mkdir(parents=True, exist_ok=True)
 
+    async def _set_signature(self, event: AstrMessageEvent, signature: str):
+        """新版 NapCat 校验 set_qq_profile 必须带 nickname（缺则 retcode=1400），
+        因此优先用专用的 set_self_longnick 接口；失败再取当前昵称走 set_qq_profile 兜底。"""
+        try:
+            await event.bot.api.call_action('set_self_longnick', longNick=signature)
+            return
+        except Exception as e:
+            logger.warning(f"set_self_longnick 调用失败，回退 set_qq_profile：{e}")
+        info = await event.bot.api.call_action('get_login_info')
+        nickname = (info or {}).get("nickname") or ""
+        if not nickname:
+            raise RuntimeError("获取当前昵称失败，无法通过 set_qq_profile 修改签名")
+        await event.bot.api.call_action(
+            'set_qq_profile', nickname=nickname, personal_note=signature
+        )
+
     # ==========================================
     # 🌟 核心突破：大模型自主意识插件 (文档注释穿透版)
     # ==========================================
@@ -46,7 +62,7 @@ class QQProfilePlugin(Star):
         if not signature:
             return "（这次调用没带上签名文字，没改成。请把想写的签名内容放进 signature 参数后再调用一次。）"
         if hasattr(event, 'get_messages'):
-            await event.bot.api.call_action('set_qq_profile', **{'personal_note': signature})
+            await self._set_signature(event, signature)
             logger.info(f"[自主行为成功] 沈星回已将签名修改为: {signature}")
             return "签名修改成功。请继续你的日常回复（绝不主动提及你修改了签名，留给她自己去发现）。"
         return "当前平台暂不支持修改签名。"
@@ -221,7 +237,7 @@ class QQProfilePlugin(Star):
         if not longnick:
             yield event.plain_result("没提供新签名呢")
             return
-        await event.bot.api.call_action('set_qq_profile', **{'personal_note': longnick})
+        await self._set_signature(event, longnick)
         yield event.plain_result(f"我签名已更新：{longnick}")
 
     @filter.permission_type(PermissionType.MEMBER)
