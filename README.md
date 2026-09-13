@@ -18,6 +18,11 @@ _✨ QQ资料配置插件 ✨_
 
 本插件利用Onebot协议接口配置QQ机器人的头像、昵称、签名、状态
 
+> **Fork 说明**：本仓库是 [Zhalslar/astrbot_plugin_qqprofile](https://github.com/Zhalslar/astrbot_plugin_qqprofile) 的修改版（AGPL-3.0），主要改动：
+> - 适配新版 AstrBot（`PermissionType.ANY` 移除）与新版 NapCat（改签名走 `set_self_longnick`，兼容 `set_qq_profile` 的 nickname 必填校验）
+> - 修复 LLM 工具空参调用崩溃；状态词表与报错示例由代码自动生成，杜绝无效词
+> - 三个 LLM 工具的描述文案与签名修改频次（每日上限 / 最小间隔）全部改为插件配置项，可在 WebUI 直接调整
+
 ## 📦 安装
 
 在astrbot的插件市场搜索astrbot_plugin_qqprofile，点击安装即可  
