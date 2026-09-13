@@ -1,9 +1,9 @@
 name: astrbot_plugin_qqprofile
-display_name: QQ资料管理
-desc: "[仅aiocqhttp]配置bot的头像、昵称、签名、状态等QQ资料, 同时可绑定于不同人格"
+display_name: QQ资料管理（自改版）
+desc: "[仅aiocqhttp][pupotato自改版] 配置bot的头像、昵称、签名、状态等QQ资料, 可绑定于不同人格；自改：适配新版NapCat签名接口，工具描述与签名频次改为配置项可调"
 help: 略
 version: v1.1.6
-author: Zhalslar
+author: Zhalslar(原作) / pupotato(自改)
 repo: https://github.com/pupotato/astrbot_plugin_qqprofile
 support_platforms:
   - aiocqhttp

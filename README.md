@@ -5,7 +5,7 @@
 
 # astrbot_plugin_qqprofile
 
-_✨ QQ资料配置插件 ✨_  
+_✨ QQ资料配置插件 · pupotato 自改版 ✨_  
 
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
